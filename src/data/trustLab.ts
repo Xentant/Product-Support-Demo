@@ -73,6 +73,8 @@ export interface ScenarioRun {
   frictionClass: string;
   productFrictionSuspected: boolean;
   evidenceContribution: string;
+  /** How the agent confirms the customer was actually unblocked. */
+  followUp?: string;
   evaluation: EvalItem[];
   qualityScore: number;
 }
@@ -185,6 +187,7 @@ const PRIMARY_RUN: ScenarioRun = {
   escalation: null,
   escalationSent: false,
   disposition: 'Resolved (verified by tool state) · follow-up check scheduled at 30 min',
+  followUp: 'At 30 min the agent re-checks getKeyPropagationStatus and messages the customer: "ap-southeast is complete; you can switch to the new key." Closure is marked verified only after that check.',
   frictionClass: 'Propagation status not visible',
   productFrictionSuspected: true,
   evidenceContribution: 'Contributed to API Key Management › rotation evidence (aggregated; does not create an epic on its own).',
@@ -256,6 +259,7 @@ const PRIMARY_VARIANT_RUN: ScenarioRun = {
   escalation: PRIMARY_ESCALATION,
   escalationSent: true,
   disposition: 'Escalated (correct) · customer protected by grace period',
+  followUp: 'When Identity Platform resolves ESC-20491, the agent confirms all regions show complete, tells the customer it is safe to switch, and links the case to bug ADO-BUG-51877 so the customer is notified when the fix ships.',
   frictionClass: 'Propagation status not visible',
   productFrictionSuspected: true,
   evidenceContribution: 'Contributed to API Key Management evidence and flagged to problem record PRB0041877.',
@@ -597,6 +601,65 @@ export const SCENARIOS: Scenario[] = [
         friction: ['passed', 'Not tagged.'],
       }),
       qualityScore: 89,
+    },
+  },
+  {
+    id: 'billing_fraud', number: 9, title: 'Payment failed, account suspended',
+    message: 'My card payment failed, then my account got suspended for "suspicious activity". Our production app is down. Unblock us now.',
+    authState: 'authenticated', segment: 'Team', accountContext: ['Team plan', 'Card changed 2 days ago', 'Risk hold placed today'],
+    risk: 'critical', availableTools: ['getAccountPlan', 'getBillingEvents', 'createEscalation'],
+    previousInteractions: ['None'], driver: 'Usage Billing Questions', subdriver: 'Payment failed › risk hold',
+    considerations: [
+      { factor: 'Financial implications', value: 'High: suspended paid account', weight: 'high' },
+      { factor: 'Security / fraud signal', value: 'Active risk hold; reasons are confidential', weight: 'high' },
+      { factor: 'Consequential action', value: 'Lifting a hold is consequential', weight: 'high' },
+      { factor: 'Customer impact', value: 'Production outage', weight: 'high' },
+      { factor: 'Customer frustration', value: 'High', weight: 'medium' },
+    ],
+    run: {
+      action: 'ESCALATE', secondaryAction: 'USE TOOL',
+      toolCalls: [
+        { tool: 'getBillingEvents', args: { accountId: 'acct_7d1…', range: '7 days' },
+          result: { events: [{ type: 'payment_method_changed', at: '2026-10-27' }, { type: 'charge_failed', code: 'do_not_honor', at: '2026-10-29T08:02Z' }, { type: 'risk_hold', state: 'active', at: '2026-10-29T08:05Z', detail: '[restricted: Fraud & Risk only]' }] },
+          status: 'success', latencyMs: 164 },
+        { tool: 'createEscalation', args: { queue: 'fraud-risk-priority', urgency: 'critical' },
+          result: { escalationId: 'ESC-20577', state: 'created', verified: true, assignedQueue: 'Fraud & Risk (priority)', slaMinutes: 60 },
+          status: 'verified_success', latencyMs: 219 },
+      ],
+      response: {
+        summary: 'I can see your payment was declined by your card issuer and a review hold was placed on the account a few minutes later. I cannot lift the hold or share review details, but I have sent this to our Fraud & Risk team as a priority case (ESC-20577, verified created) noting your production impact. Their target response is within 60 minutes.',
+        evidence: ['The card issuer declined the charge (do_not_honor).', 'A review hold is active on the account.', 'Priority escalation ESC-20577 was created and verified.'],
+        inference: ['The decline and the hold may be related; the agent cannot see the review criteria.'],
+        recommended: ['Contact your card issuer about the decline, or add another payment method in Billing.', 'Watch for an email from Fraud & Risk; no new case needed.'],
+      },
+      escalationDecision: 'Escalated to Fraud & Risk (priority) with production impact flagged. The agent never lifts holds or reveals risk signals.',
+      escalation: {
+        customerIntent: 'Restore service after a payment failure and risk hold.', authenticationState: 'Authenticated (org owner)',
+        driver: 'Usage Billing Questions', subdriver: 'Payment failed › risk hold',
+        troubleshooting: ['Retrieved billing events'], toolCalls: ['getBillingEvents(7d)', 'createEscalation(fraud-risk-priority)'],
+        toolResults: ['Issuer decline then risk hold', 'ESC-20577 created'], failedSteps: ['Payment retry not attempted (hold active)'],
+        customerImpact: 'Production application down for a Team-plan customer.', suspectedCondition: 'Payment-method change followed by issuer decline triggered a hold. Not confirmed.',
+        urgency: 'critical', queue: 'Fraud & Risk (priority)', infoNeeded: ['Risk review outcome', 'Whether the new card is verified'],
+        frictionClass: 'Hold reason and next steps not visible to customer',
+      },
+      escalationSent: true,
+      disposition: 'Escalated to Fraud & Risk (correct)',
+      followUp: 'The agent watches ESC-20577; when the hold is lifted it confirms API access is restored with the customer before closing.',
+      frictionClass: 'Hold reason and next steps not visible to customer', productFrictionSuspected: true,
+      evidenceContribution: 'Contributed to Usage Billing › payment failed (EA-316). Risk details are excluded from shared evidence.',
+      evaluation: evalBase({
+        verified: ['not_applicable', 'Resolution belongs to Fraud & Risk.'],
+        grounded: ['passed', 'Only states what billing events show.'],
+        unsupported: ['passed', 'Did not promise reinstatement or a timeline beyond the queue SLA.'],
+        tools: ['passed', 'Billing events, then escalation. No attempt to modify the hold.'],
+        auth: ['passed', 'Org owner verified.'],
+        security: ['passed', 'Restricted risk detail not disclosed.'],
+        escalation: ['passed', 'Correct queue and urgency with production impact.'],
+        package: ['passed', 'Complete.'],
+        recontact: ['needs_review', 'Moderate until the hold is resolved.'],
+        friction: ['passed', 'Tagged hold-visibility friction.'],
+      }),
+      qualityScore: 95,
     },
   },
 ];

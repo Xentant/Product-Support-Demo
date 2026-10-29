@@ -1,5 +1,6 @@
 import { AlertTriangle, Filter, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Prioritization } from '../components/Prioritization';
 import { DriverTable, EXPLORER_COLS, INTERVENTION_LABEL, INTERVENTION_TYPE_LABEL, rowFromAggregate, type DriverRow } from '../components/DriverTable';
 import { AIGenerated, Badge, Button, Card, CardHeader, PageHeader, Tip } from '../components/ui';
 import { EMERGING_ALERTS } from '../data/alerts';
@@ -175,6 +176,10 @@ export function SupportIntelligence() {
           <div className="p-6 text-center text-sm text-ink-3">No drivers match these filters.</div>
         )}
       </Card>
+
+      <div className="mt-5">
+        <Prioritization />
+      </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_1.25fr]">
         <Card>

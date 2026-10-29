@@ -5,6 +5,7 @@ import { AIGenerated, Badge, Button, Card, CardHeader, MetricCard, PageHeader } 
 import { EMERGING_ALERTS } from '../data/alerts';
 import { AGGREGATES, PLATFORM, TOP_DRIVER_IDS } from '../data/drivers';
 import { LADDER } from '../data/glossary';
+import { LOOP_HEALTH } from '../data/loop';
 import { CASES_AI, CASES_AVOIDED, CASES_HUMAN, DEMAND_COMPOSITION, PRODUCTION_CARDS } from '../data/outcomes';
 import { fmtInt, fmtMoney } from '../lib/format';
 import { go } from '../lib/router';
@@ -85,6 +86,19 @@ export function Overview() {
               Investigate driver
             </Button>
           </div>
+        </div>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader title="Loop health" subtitle="Is the support-to-product loop removing demand? North star: fewer cases per user, even as the platform grows." />
+        <div className="grid grid-cols-2 gap-px bg-line md:grid-cols-3 xl:grid-cols-6">
+          {LOOP_HEALTH.map((m) => (
+            <div key={m.id} className="bg-white px-4 py-3" title={m.tip}>
+              <div className="text-[11px] font-medium text-ink-3">{m.label}</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums text-ink">{m.value}</div>
+              <div className={`text-[11px] ${m.tone === 'good' ? 'text-good-700' : m.tone === 'warn' ? 'text-warn-700' : 'text-ink-3'}`}>{m.sub}</div>
+            </div>
+          ))}
         </div>
       </Card>
 

@@ -223,6 +223,7 @@ function ScenarioView({ scenario }: { scenario: Scenario }) {
                     <div><dt className="text-ink-3">Product-friction classification</dt><dd className="text-ink">{run.frictionClass} {run.productFrictionSuspected && <Badge tone="amber" className="ml-1">productFrictionSuspected</Badge>}</dd></div>
                     <div><dt className="text-ink-3">Driver › subdriver</dt><dd className="text-ink">{scenario.driver} › {scenario.subdriver}</dd></div>
                     <div className="sm:col-span-2"><dt className="text-ink-3">Evidence contribution</dt><dd className="text-ink">{run.evidenceContribution}</dd></div>
+                    {run.followUp && <div className="sm:col-span-2"><dt className="text-ink-3">Customer follow-up</dt><dd className="text-ink">{run.followUp}</dd></div>}
                   </dl>
                   {run.escalation && <EscalationPackageView pkg={run.escalation} />}
                   {scenario.id === 'propagation' && (
