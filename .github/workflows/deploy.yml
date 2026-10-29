@@ -1,8 +1,8 @@
 name: Deploy to GitHub Pages
 
+# Manual only. The live site is served from the committed docs/ folder
+# (Settings → Pages → Deploy from a branch → main /docs); run `npm run build:pages` before pushing.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
