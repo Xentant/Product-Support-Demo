@@ -13,5 +13,11 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // If GitHub Pages serves the repository root (unbuilt source), forward to the built site in docs/.
+      if (location.hostname.endsWith('github.io') && document.querySelector('script[src="/src/main.tsx"]')) {
+        location.replace(location.pathname.replace(/\/?(index\.html)?$/, '/') + 'docs/' + location.hash);
+      }
+    </script>
   </body>
 </html>

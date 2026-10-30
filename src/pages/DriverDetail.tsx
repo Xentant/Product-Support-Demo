@@ -13,6 +13,7 @@ import {
   INFRA, INTERVENTION_RECOMMENDATIONS, INVESTIGATION_SUMMARY, MISSING_EVIDENCE, SEGMENT_BREAKDOWNS, SUBDRIVER_BREAKDOWN, TELEMETRY,
 } from '../data/apiKey';
 import { CONVERSATIONS, REPRESENTATIVE_CASES } from '../data/cases';
+import { BLAST_RADIUS, BUG_REPORT } from '../data/loop';
 import { AGGREGATES, DRIVER_BY_ID, TRENDS } from '../data/drivers';
 import { ENGINEERING_TEAMS, PRODUCT_OWNERS, SEGMENT_LABEL, CHANNEL_LABEL, REGION_LABEL, RESOLUTION_LABEL } from '../data/org';
 import { cx, fmtInt, fmtMoney, fmtSigned } from '../lib/format';
@@ -76,7 +77,7 @@ function DriverDetailBody({ id }: { id: string }) {
     ...(isKey ? [{ key: 'opportunity' as const, label: opportunityStatus === 'approved' ? 'View approved opportunity' : 'Investigate Product Opportunity', icon: <FileSearch size={14} />, primary: true }] : []),
     { key: 'assign', label: 'Assign Owner', icon: <UserPlus size={14} />, done: d.ownershipStatus === 'owned' },
     { key: 'link', label: 'Link Existing Work', icon: <Link2 size={14} />, done: flags.includes('linked_work') },
-    { key: 'engineering', label: 'Request Engineering Investigation', icon: <Wrench size={14} />, done: flags.includes('engineering_requested') },
+    { key: 'engineering', label: isKey ? 'Request Engineering Investigation (file bug)' : 'Request Engineering Investigation', icon: <Wrench size={14} />, done: flags.includes('engineering_requested') },
     { key: 'agent', label: 'Improve Agent Guidance', icon: <Bot size={14} />, done: flags.includes('agent_guidance') },
     { key: 'help', label: 'Improve Help Content', icon: <BookOpen size={14} />, done: flags.includes('help_content') },
     { key: 'monitor', label: 'Monitor Trend', icon: <BellRing size={14} />, done: flags.includes('monitoring') },
@@ -341,6 +342,18 @@ function DriverDetailBody({ id }: { id: string }) {
                 <Section title="Information missing">
                   <ul className="list-disc space-y-0.5 pl-4 text-ink-2">{MISSING_EVIDENCE.map((m) => <li key={m}>{m}</li>)}</ul>
                 </Section>
+                <Section title="Blast radius at detection">
+                  <ul className="space-y-1">
+                    {BLAST_RADIUS.map((b, i) => (
+                      <li key={b.label} className="grid grid-cols-[52px_1fr_auto] gap-2">
+                        <span className="tabular-nums text-ink-3">{b.date}</span>
+                        <span className={i === 1 ? 'font-medium text-brand-700' : 'text-ink-2'}>{b.label}<span className="block text-[11px] text-ink-3">{b.note}</span></span>
+                        <span className="text-right font-medium tabular-nums text-ink">{b.accounts.toLocaleString()} accts</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 text-ink-2"><KindTag kind="recommendation" /> <span className="ml-1">Add a release-aware fast lane so new drivers are caught while the affected group is small (~180 vs. 3,237 accounts).</span></p>
+                </Section>
                 <Section title="Current ownership">
                   <p className="text-ink-2">{d.ownershipStatus === 'owned' ? `Owned by ${d.productOwner} / ${d.engineeringOwner}.` : 'No Product or Engineering owner. A suggestion exists but has not been accepted.'}</p>
                 </Section>
@@ -469,15 +482,33 @@ function ActionModal({ action, onClose, driverId, label }: { action: ActionKey |
       run: () => done('linked_work', 'Linked existing work', `${link} linked to ${label} evidence.`),
     },
     engineering: {
-      title: 'Request Engineering investigation',
-      confirm: 'Send request',
-      body: (
+      title: isKey ? `File bug ${BUG_REPORT.id} for ${BUG_REPORT.team}` : 'Request Engineering investigation',
+      confirm: isKey ? 'Approve & file bug' : 'Send request',
+      body: isKey ? (
+        <div className="space-y-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2"><AIGenerated label="AI-drafted from aggregated cases" /><Badge>{BUG_REPORT.severity}</Badge></div>
+          <p className="text-sm font-medium text-ink">{BUG_REPORT.title}</p>
+          <p><span className="font-medium text-ink">Affected:</span> {BUG_REPORT.affected}</p>
+          <div>
+            <div className="font-medium text-ink">Repro steps</div>
+            <ol className="mt-0.5 list-decimal space-y-0.5 pl-4">{BUG_REPORT.repro.map((r) => <li key={r}>{r}</li>)}</ol>
+          </div>
+          <p><span className="font-medium text-ink">Expected:</span> {BUG_REPORT.expected}</p>
+          <p><span className="font-medium text-ink">Actual:</span> {BUG_REPORT.actual}</p>
+          <div>
+            <div className="font-medium text-ink">Proposed fix</div>
+            <ul className="mt-0.5 list-disc space-y-0.5 pl-4">{BUG_REPORT.proposedFix.map((r) => <li key={r}>{r}</li>)}</ul>
+          </div>
+          <p><span className="font-medium text-ink">Evidence:</span> {BUG_REPORT.evidence.join(' · ')}</p>
+          <p><span className="font-medium text-ink">Still unknown:</span> {MISSING_EVIDENCE.slice(0, 2).join('; ')}.</p>
+          <p className="text-ink-3">Confidence: {BUG_REPORT.confidence}. Filing routes the bug to {BUG_REPORT.team} and links it to ADO #48213 and every contributing case, so customers can be notified when the fix ships.</p>
+        </div>
+      ) : (
         <div className="space-y-2">
-          <p>Sends a structured request with the evidence package and missing-evidence list to {isKey ? 'Identity Platform triage' : 'the owning team’s triage queue'}.</p>
-          <ul className="list-disc pl-4 text-xs">{(isKey ? MISSING_EVIDENCE.slice(0, 3) : ['Root-cause analysis of the trend']).map((m) => <li key={m}>{m}</li>)}</ul>
+          <p>Sends a structured request with the evidence package and missing-evidence list to the owning team’s triage queue.</p>
         </div>
       ),
-      run: () => done('engineering_requested', 'Engineering investigation requested', isKey ? 'Request attached to ADO #48213 with evidence package (synthetic).' : 'Request sent to team triage (synthetic).'),
+      run: () => done('engineering_requested', isKey ? `Bug ${BUG_REPORT.id} filed` : 'Engineering investigation requested', isKey ? `Routed to ${BUG_REPORT.team} with repro steps, proposed fix and ${BUG_REPORT.evidence.length} evidence links (synthetic).` : 'Request sent to team triage (synthetic).'),
     },
     agent: {
       title: 'Improve agent guidance',
